@@ -3,7 +3,7 @@ package org.lsposed.lspd.service;
 import org.lsposed.lspd.service.Module;
 
 interface ILSPApplicationService {
-    IBinder requestModuleBinder() = 2;
+    IBinder requestModuleBinder(String name) = 2;
 
     IBinder requestManagerBinder() = 3;
 

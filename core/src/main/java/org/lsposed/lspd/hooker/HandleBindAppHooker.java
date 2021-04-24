@@ -80,7 +80,7 @@ public class HandleBindAppHooker extends XC_MethodHook {
             String processName = (String) XposedHelpers.getObjectField(bindData, "processName");
 
 
-            IBinder moduleBinder = serviceClient.requestModuleBinder();
+            IBinder moduleBinder = serviceClient.requestModuleBinder(appInfo.packageName);
             boolean isModule = moduleBinder != null;
             int xposedminversion = -1;
             boolean xposedsharedprefs = false;

@@ -27,9 +27,11 @@ import android.util.Log;
 
 import org.lsposed.lspd.BuildConfig;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class ServiceManager {
     private static LSPosedService mainService = null;
-    private static LSPModuleService moduleService = null;
+    final private static ConcurrentHashMap<String, LSPModuleService> moduleServices = new ConcurrentHashMap<>();
     private static LSPApplicationService applicationService = null;
     private static LSPManagerService managerService = null;
     public static final String TAG = "LSPosedService";
@@ -60,7 +62,6 @@ public class ServiceManager {
 
         Looper.prepare();
         mainService = new LSPosedService();
-        moduleService = new LSPModuleService();
         applicationService = new LSPApplicationService();
         managerService = new LSPManagerService();
 
@@ -110,8 +111,8 @@ public class ServiceManager {
         }
     }
 
-    public static LSPModuleService getModuleService() {
-        return moduleService;
+    public static LSPModuleService getModuleService(String module) {
+        return moduleServices.computeIfAbsent(module, LSPModuleService::new);
     }
 
     public static LSPApplicationService getApplicationService() {
