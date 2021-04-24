@@ -1,5 +1,7 @@
 package org.lsposed.lspd.service;
 
+import org.lsposed.lspd.service.Module;
+
 interface ILSPApplicationService {
     IBinder requestModuleBinder() = 2;
 
@@ -7,7 +9,7 @@ interface ILSPApplicationService {
 
     boolean isResourcesHookEnabled() = 5;
 
-    Map getModulesList(String processName) = 6;
+    List<Module> getModulesList(String processName) = 6;
 
     String getPrefsPath(String packageName) = 7;
 

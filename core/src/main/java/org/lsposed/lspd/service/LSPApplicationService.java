@@ -26,6 +26,7 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.util.Pair;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,7 +65,7 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     }
 
     @Override
-    public Map<String, String> getModulesList(String processName) throws RemoteException {
+    public List<Module> getModulesList(String processName) throws RemoteException {
         ensureRegistered();
         int callingUid = Binder.getCallingUid();
         if (callingUid == 1000 && processName.equals("android")) {

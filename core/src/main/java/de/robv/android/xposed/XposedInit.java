@@ -221,7 +221,9 @@ public final class XposedInit {
         synchronized (moduleLoadLock) {
             var moduleList = serviceClient.getModulesList();
             ArraySet<String> newLoadedApk = new ArraySet<>();
-            moduleList.forEach((name, apk) -> {
+            moduleList.forEach(module -> {
+                var apk = module.apk;
+                var name = module.name;
                 if (loadedModules.contains(apk)) {
                     newLoadedApk.add(apk);
                 } else {

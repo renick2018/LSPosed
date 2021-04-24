@@ -25,9 +25,11 @@ import android.os.RemoteException;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.lsposed.lspd.service.ILSPApplicationService;
+import org.lsposed.lspd.service.Module;
 import org.lsposed.lspd.util.Utils;
 
 public class LSPApplicationServiceClient implements ILSPApplicationService {
@@ -89,16 +91,15 @@ public class LSPApplicationServiceClient implements ILSPApplicationService {
     }
 
     @Override
-    public Map<String, String> getModulesList(String processName) {
+    public List<Module> getModulesList(String processName) {
         try {
-            //noinspection unchecked
             return service.getModulesList(processName);
         } catch (RemoteException | NullPointerException ignored) {
         }
-        return Collections.emptyMap();
+        return Collections.emptyList();
     }
 
-    public Map<String, String> getModulesList() {
+    public List<Module> getModulesList() {
         return getModulesList(processName);
     }
 

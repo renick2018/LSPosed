@@ -55,6 +55,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -142,7 +143,7 @@ public class ConfigManager {
             "PRIMARY KEY (mid, app_pkg_name, user_id)" +
             ");");
 
-    private final Map<ProcessScope, Map<String, String>> cachedScope = new ConcurrentHashMap<>();
+    private final Map<ProcessScope, List<Module>> cachedScope = new ConcurrentHashMap<>();
 
     private final Map<Integer, String> cachedModule = new ConcurrentHashMap<>();
 
@@ -171,13 +172,17 @@ public class ConfigManager {
         }
     }
 
-    public Map<String, String> getModulesForSystemServer() {
-        HashMap<String, String> modules = new HashMap<>();
+    public List<Module> getModulesForSystemServer() {
+        List<Module> modules = new LinkedList<>();
         try (Cursor cursor = db.query("scope INNER JOIN modules ON scope.mid = modules.mid", new String[]{"module_pkg_name", "apk_path"}, "app_pkg_name=? AND enabled=1", new String[]{"android"}, null, null, null)) {
             int apkPathIdx = cursor.getColumnIndex("apk_path");
             int pkgNameIdx = cursor.getColumnIndex("module_pkg_name");
             while (cursor.moveToNext()) {
-                modules.put(cursor.getString(pkgNameIdx), cursor.getString(apkPathIdx));
+                var module = new Module();
+                module.name = cursor.getString(pkgNameIdx);
+                module.apk = cursor.getString(apkPathIdx);
+                module.config = null;
+                modules.add(module);
             }
         }
         return modules;
@@ -364,8 +369,13 @@ public class ConfigManager {
                         obsoletePackages.add(app);
                         continue;
                     }
-                    for (ProcessScope processScope : processesScope)
-                        cachedScope.computeIfAbsent(processScope, ignored -> new HashMap<>()).put(module_pkg, apk_path);
+                    for (ProcessScope processScope : processesScope) {
+                        var module = new Module();
+                        module.name = module_pkg;
+                        module.apk = apk_path;
+                        module.config = null;
+                        cachedScope.computeIfAbsent(processScope, ignored -> new LinkedList<>()).add(module);
+                    }
                 } catch (RemoteException e) {
                     Log.e(TAG, Log.getStackTraceString(e));
                 }
@@ -376,17 +386,15 @@ public class ConfigManager {
             }
         }
         Log.d(TAG, "cached Scope");
-        cachedScope.forEach((ps, module) -> {
+        cachedScope.forEach((ps, modules) -> {
             Log.d(TAG, ps.processName + "/" + ps.uid);
-            module.forEach((pkg_name, apk_path) -> {
-                Log.d(TAG, "\t" + pkg_name);
-            });
+            modules.forEach(module -> Log.d(TAG, "\t" + module.name));
         });
     }
 
     // This is called when a new process created, use the cached result
-    public Map<String, String> getModulesForProcess(String processName, int uid) {
-        return isManager(uid) ? Collections.emptyMap() : cachedScope.getOrDefault(new ProcessScope(processName, uid), Collections.emptyMap());
+    public List<Module> getModulesForProcess(String processName, int uid) {
+        return isManager(uid) ? Collections.emptyList() : cachedScope.getOrDefault(new ProcessScope(processName, uid), Collections.emptyList());
     }
 
     // This is called when a new process created, use the cached result
