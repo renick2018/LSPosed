@@ -285,7 +285,7 @@ public final class XposedInit {
         String moduleLibraryName;
         try {
             while ((moduleLibraryName = moduleLibraryReader.readLine()) != null) {
-                if (!moduleLibraryName.startsWith("#") && moduleLibraryName.endsWith(".so")) {
+                if (!moduleLibraryName.startsWith("#")) {
                     NativeAPI.recordNativeEntrypoint(moduleLibraryName);
                 }
             }
@@ -389,9 +389,7 @@ public final class XposedInit {
         } catch (ClassNotFoundException ignored) {
         }
 
-        boolean res = initModule(mcl, name, apk);
-        res = res && initNativeModule(mcl, name);
-        return res;
+        return initNativeModule(mcl, name) && initModule(mcl, name, apk);
     }
 
     public final static HashSet<String> loadedPackagesInProcess = new HashSet<>(1);
