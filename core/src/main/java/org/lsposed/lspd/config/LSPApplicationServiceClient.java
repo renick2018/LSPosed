@@ -19,6 +19,7 @@
 
 package org.lsposed.lspd.config;
 
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -129,6 +130,11 @@ public class LSPApplicationServiceClient implements ILSPApplicationService {
             return service.getModuleLogger();
         } catch (RemoteException | NullPointerException ignored) {
         }
+        return null;
+    }
+
+    @Override
+    public Bundle requestRemotePreference(String packageName, int userId, IBinder callback) throws RemoteException {
         return null;
     }
 

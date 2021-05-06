@@ -16,4 +16,6 @@ interface ILSPApplicationService {
     String getCachePath(String fileName) = 8;
 
     ParcelFileDescriptor getModuleLogger() = 9;
+
+    Bundle requestRemotePreference(String packageName, int userId, IBinder callback) = 10;
 }

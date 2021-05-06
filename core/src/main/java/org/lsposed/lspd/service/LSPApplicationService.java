@@ -20,6 +20,7 @@
 package org.lsposed.lspd.service;
 
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -90,6 +91,12 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     public ParcelFileDescriptor getModuleLogger() throws RemoteException {
         ensureRegistered();
         return ConfigManager.getInstance().getModulesLog(ParcelFileDescriptor.MODE_WRITE_ONLY | ParcelFileDescriptor.MODE_APPEND);
+    }
+
+    @Override
+    public Bundle requestRemotePreference(String packageName, int userId, IBinder callback) throws RemoteException {
+        ensureRegistered();
+        return null;
     }
 
     @Override
