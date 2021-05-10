@@ -41,6 +41,7 @@ import android.util.Pair;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.apache.commons.lang3.SerializationUtils;
 import org.lsposed.lspd.Application;
 import org.lsposed.lspd.BuildConfig;
 
@@ -49,6 +50,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
@@ -144,10 +146,20 @@ public class ConfigManager {
             "user_id integer NOT NULL," +
             "PRIMARY KEY (mid, app_pkg_name, user_id)" +
             ");");
+    private static final SQLiteStatement createConfigTable = db.compileStatement("CREATE TABLE IF NOT EXISTS config (" +
+            "module_pkg_name text NOT NULL," +
+            "user_id integer NOT NULL," +
+            "`group` text NOT NULL," +
+            "`key` text NOT NULL," +
+            "data blob NOT NULL," +
+            "PRIMARY KEY (module_pkg_name, user_id)" +
+            ");");
 
     private final Map<ProcessScope, List<Module>> cachedScope = new ConcurrentHashMap<>();
 
     private final Map<Integer, String> cachedModule = new ConcurrentHashMap<>();
+
+    private final Map<Pair<String, Integer>, Map<String, ConcurrentHashMap<String, Object>>> cachedConfig = new ConcurrentHashMap<>();
 
     private void updateCaches(boolean sync) {
         synchronized (this) {
@@ -291,6 +303,7 @@ public class ConfigManager {
     private void createTables() {
         createModulesTable.execute();
         createScopeTable.execute();
+        createConfigTable.execute();
     }
 
     private List<ProcessScope> getAssociatedProcesses(Application app) throws RemoteException {
@@ -300,6 +313,52 @@ public class ConfigManager {
             processes.add(new ProcessScope(processName, result.second));
         }
         return processes;
+    }
+
+    private @NonNull
+    Map<String, ConcurrentHashMap<String, Object>> fetchModuleConfig(String name, int user_id) {
+        var config = new ConcurrentHashMap<String, ConcurrentHashMap<String, Object>>();
+
+        try (Cursor cursor = db.query("config", new String[]{"group", "key", "data"},
+                "module_pkg_name = ? and user_id = ?", new String[]{name, String.valueOf(user_id)}, null, null, null)) {
+            if (cursor == null) {
+                Log.e(TAG, "db cache failed");
+                return config;
+            }
+            int groupIdx = cursor.getColumnIndex("group");
+            int keyIdx = cursor.getColumnIndex("key");
+            int dataIdx = cursor.getColumnIndex("data");
+            while (cursor.moveToNext()) {
+                var group = cursor.getString(groupIdx);
+                var key = cursor.getString(keyIdx);
+                var data = cursor.getBlob(dataIdx);
+                var object = SerializationUtils.deserialize(data);
+                if (object == null) continue;
+                config.computeIfAbsent(group, g -> new ConcurrentHashMap<>()).put(key, object);
+            }
+        }
+        return config;
+    }
+
+    public void updateModulePrefs(String moduleName, int userId, String group, String key, Object value) {
+        var config = cachedConfig.computeIfAbsent(new Pair<>(moduleName, userId), module -> fetchModuleConfig(module.first, module.second));
+        var prefs = config.computeIfAbsent(group, g -> new ConcurrentHashMap<>());
+        if (value instanceof Serializable) {
+            prefs.put(key, value);
+            var values = new ContentValues();
+            values.put("group", group);
+            values.put("key", key);
+            values.put("value", SerializationUtils.serialize((Serializable) value));
+            db.updateWithOnConflict("config", values, "module_pkg_name=? and user_id=?", new String[]{moduleName, String.valueOf(userId)}, SQLiteDatabase.CONFLICT_REPLACE);
+        } else {
+            prefs.remove(key);
+            db.delete("config", "module_pkg_name=? and user_id=?", new String[]{moduleName, String.valueOf(userId)});
+        }
+    }
+
+    public ConcurrentHashMap<String, Object> getModulePrefs(String moduleName, int userId, String group) {
+        var config = cachedConfig.computeIfAbsent(new Pair<>(moduleName, userId), module -> fetchModuleConfig(module.first, module.second));
+        return config.getOrDefault(group, null);
     }
 
     private synchronized void cacheModules() {
@@ -648,6 +707,10 @@ public class ConfigManager {
 
     public boolean isModule(int uid) {
         return cachedModule.containsKey(uid);
+    }
+
+    public boolean isModule(int uid, String name) {
+        return cachedModule.getOrDefault(uid, null) == name;
     }
 
     private void recursivelyChown(File file, int uid, int gid) throws ErrnoException {
