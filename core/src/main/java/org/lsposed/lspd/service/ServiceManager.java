@@ -20,20 +20,24 @@
 package org.lsposed.lspd.service;
 
 import android.content.Context;
-import android.os.Build;
 import android.os.IBinder;
+import android.os.IServiceManager;
 import android.os.Looper;
 import android.util.Log;
+
+import com.android.internal.os.BinderInternal;
 
 import org.lsposed.lspd.BuildConfig;
 
 import java.util.concurrent.ConcurrentHashMap;
+import hidden.HiddenApiBridge;
 
 public class ServiceManager {
     private static LSPosedService mainService = null;
     final private static ConcurrentHashMap<String, LSPModuleService> moduleServices = new ConcurrentHashMap<>();
     private static LSPApplicationService applicationService = null;
     private static LSPManagerService managerService = null;
+    private static LSPSystemServerService systemServerService = null;
     public static final String TAG = "LSPosedService";
 
     private static void waitSystemService(String name) {
@@ -47,8 +51,8 @@ public class ServiceManager {
         }
     }
 
-    private static void putBinderForSystemServer() {
-        android.os.ServiceManager.addService("serial", mainService);
+    public static IServiceManager getSystemServiceManager() {
+        return IServiceManager.Stub.asInterface(HiddenApiBridge.Binder_allowBlocking(BinderInternal.getContextObject()));
     }
 
     // call by ourselves
@@ -64,8 +68,9 @@ public class ServiceManager {
         mainService = new LSPosedService();
         applicationService = new LSPApplicationService();
         managerService = new LSPManagerService();
+        systemServerService = new LSPSystemServerService();
 
-        putBinderForSystemServer();
+        systemServerService.putBinderForSystemServer();
 
         waitSystemService("package");
         waitSystemService("activity");
@@ -90,7 +95,7 @@ public class ServiceManager {
             @Override
             public void onSystemServerDied() {
                 Log.w(TAG, "system server died");
-                putBinderForSystemServer();
+                systemServerService.putBinderForSystemServer();
             }
         });
 

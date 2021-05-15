@@ -51,7 +51,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -71,6 +70,8 @@ public class ConfigManager {
             "android.permission.INTERACT_ACROSS_USERS",
             "android.permission.WRITE_SECURE_SETTINGS"
     };
+
+    private static final int PER_USER_RANGE = 100000;
 
     static ConfigManager instance = null;
 
@@ -94,7 +95,8 @@ public class ConfigManager {
     private String miscPath = null;
 
     private static final File logPath = new File(basePath, "log");
-    private static final File modulesLogPath = new File(logPath, "modules.log");
+    private static final File modulesLog = new File(logPath, "modules.log");
+    private static final File oldModulesLog = new File(logPath, "modules.old.log");
     private static final File verboseLogPath = new File(logPath, "all.log");
 
     private final Handler cacheHandler;
@@ -378,9 +380,9 @@ public class ConfigManager {
             while (cursor.moveToNext()) {
                 String packageName = cursor.getString(pkgNameIdx);
                 try {
-                    PackageInfo pkgInfo = PackageService.getPackageInfo(packageName, 0, 0);
+                    PackageInfo pkgInfo = PackageService.getPackageInfoFromAllUsers(packageName, 0);
                     if (pkgInfo != null && pkgInfo.applicationInfo != null) {
-                        cachedModule.put(pkgInfo.applicationInfo.uid, pkgInfo.packageName);
+                        cachedModule.put(pkgInfo.applicationInfo.uid % PER_USER_RANGE, pkgInfo.packageName);
                     } else {
                         obsoleteModules.add(packageName);
                     }
@@ -646,12 +648,11 @@ public class ConfigManager {
 
     public ParcelFileDescriptor getModulesLog(int mode) {
         try {
-            if (modulesLogPath.length() > 4000 * 1024) {
-                try (FileChannel outChan = new FileOutputStream(modulesLogPath, true).getChannel()) {
-                    outChan.truncate(1000 * 1024);
-                }
+            if (modulesLog.length() > 16 * 1024 * 1024) {
+                //noinspection ResultOfMethodCallIgnored
+                modulesLog.renameTo(oldModulesLog);
             }
-            return ParcelFileDescriptor.open(modulesLogPath, mode | ParcelFileDescriptor.MODE_CREATE);
+            return ParcelFileDescriptor.open(modulesLog, mode | ParcelFileDescriptor.MODE_CREATE);
         } catch (IOException e) {
             Log.e(TAG, Log.getStackTraceString(e));
             return null;
@@ -669,7 +670,7 @@ public class ConfigManager {
 
     public boolean clearLogs(boolean verbose) {
         try {
-            OutputStream os = new FileOutputStream(verbose ? verboseLogPath : modulesLogPath);
+            OutputStream os = new FileOutputStream(verbose ? verboseLogPath : modulesLog);
             os.close();
             return true;
         } catch (IOException e) {
@@ -690,8 +691,9 @@ public class ConfigManager {
         return miscPath + File.separator + "cache" + File.separator + fileName;
     }
 
-    public String getPrefsPath(String fileName) {
-        return miscPath + File.separator + "prefs" + File.separator + fileName;
+    public String getPrefsPath(String fileName, int uid) {
+        int userId = uid % PER_USER_RANGE;
+        return miscPath + File.separator + "prefs" + (userId == 0 ? "" : String.valueOf(userId)) + File.separator + fileName + File.separator;
     }
 
     public static void grantManagerPermission() {
@@ -706,7 +708,7 @@ public class ConfigManager {
     }
 
     public boolean isModule(int uid) {
-        return cachedModule.containsKey(uid);
+        return cachedModule.containsKey(uid % PER_USER_RANGE);
     }
 
     public boolean isModule(int uid, String name) {
@@ -725,7 +727,7 @@ public class ConfigManager {
     public boolean ensureModulePrefsPermission(int uid) {
         String packageName = cachedModule.get(uid);
         if (packageName == null) return false;
-        File path = new File(getPrefsPath(packageName));
+        File path = new File(getPrefsPath(packageName, uid));
         try {
             if (path.exists() && !path.isDirectory()) path.delete();
             if (!path.exists()) Files.createDirectories(path.toPath());
