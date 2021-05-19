@@ -5,6 +5,10 @@ import android.os.IBinder;
 import android.os.IInterface;
 import android.os.RemoteException;
 
+import androidx.annotation.RequiresApi;
+
+import java.util.List;
+
 public interface IPackageManager extends IInterface {
 
     ApplicationInfo getApplicationInfo(String packageName, int flags, int userId)
@@ -13,8 +17,7 @@ public interface IPackageManager extends IInterface {
     PackageInfo getPackageInfo(String packageName, int flags, int userId)
             throws RemoteException;
 
-    int getPackageUid(String packageName, int userId)
-            throws RemoteException;
+    int getPackageUid(String packageName, int flags, int userId) throws RemoteException;
 
     String[] getPackagesForUid(int uid)
             throws RemoteException;
@@ -47,6 +50,13 @@ public interface IPackageManager extends IInterface {
             throws RemoteException;
 
     IPackageInstaller getPackageInstaller() throws RemoteException;
+
+    int installExistingPackageAsUser(String packageName, int userId, int installFlags,
+                                     int installReason);
+
+    @RequiresApi(29)
+    int installExistingPackageAsUser(String packageName, int userId, int installFlags,
+                                     int installReason, List<String> whiteListedPermissions);
 
     abstract class Stub extends Binder implements IPackageManager {
 
