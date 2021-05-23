@@ -484,6 +484,13 @@ public class ConfigManager {
                         module.apk = apk_path;
                         module.config = null;
                         cachedScope.computeIfAbsent(processScope, ignored -> new LinkedList<>()).add(module);
+                        if (module_pkg.equals(app.packageName)) {
+                            var appId = processScope.uid % PER_USER_RANGE;
+                            for (var user : UserService.getUsers()) {
+                                cachedScope.computeIfAbsent(new ProcessScope(processScope.processName, user * PER_USER_RANGE + appId),
+                                        ignored -> new LinkedList<>()).add(module);
+                            }
+                        }
                     }
                 } catch (RemoteException e) {
                     Log.e(TAG, Log.getStackTraceString(e));
@@ -778,7 +785,7 @@ public class ConfigManager {
     }
 
     public boolean isModule(int uid, String name) {
-        return name.equals(cachedModule.getOrDefault(uid, null));
+        return name.equals(cachedModule.getOrDefault(uid % PER_USER_RANGE, null));
     }
 
     private void recursivelyChown(File file, int uid, int gid) throws ErrnoException {

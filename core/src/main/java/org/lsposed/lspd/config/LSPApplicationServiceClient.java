@@ -33,6 +33,9 @@ import org.lsposed.lspd.service.ILSPApplicationService;
 import org.lsposed.lspd.service.Module;
 import org.lsposed.lspd.util.Utils;
 
+import java.util.Collections;
+import java.util.Map;
+
 public class LSPApplicationServiceClient implements ILSPApplicationService {
     static ILSPApplicationService service = null;
     static IBinder serviceBinder = null;
@@ -93,6 +96,7 @@ public class LSPApplicationServiceClient implements ILSPApplicationService {
     @Override
     public List<Module> getModulesList(String processName) {
         try {
+            //noinspection unchecked
             return service.getModulesList(processName);
         } catch (RemoteException | NullPointerException ignored) {
         }

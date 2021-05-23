@@ -19,25 +19,26 @@
 
 package org.lsposed.lspd.service;
 
-import android.os.Binder;
 import android.os.Bundle;
+import static org.lsposed.lspd.service.ServiceManager.TAG;
+
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.Pair;
 
+import org.lsposed.lspd.util.Utils;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.lsposed.lspd.service.ServiceManager.TAG;
-
 public class LSPApplicationService extends ILSPApplicationService.Stub {
     // <uid, pid>
     private final static Set<Pair<Integer, Integer>> cache = ConcurrentHashMap.newKeySet();
-    private final static Set<IBinder> handles = ConcurrentHashMap.newKeySet();
+    private final static Map<Integer, IBinder> handles = new ConcurrentHashMap<>();
     private final static Set<IBinder.DeathRecipient> recipients = ConcurrentHashMap.newKeySet();
 
     public boolean registerHeartBeat(int uid, int pid, IBinder handle) {
@@ -47,14 +48,14 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
                 public void binderDied() {
                     Log.d(TAG, "pid=" + pid + " uid=" + uid + " is dead.");
                     cache.remove(new Pair<>(uid, pid));
-                    handles.remove(handle);
+                    handles.remove(pid, handle);
                     handle.unlinkToDeath(this, 0);
                     recipients.remove(this);
                 }
             };
             recipients.add(recipient);
             handle.linkToDeath(recipient, 0);
-            handles.add(handle);
+            handles.put(pid, handle);
             cache.add(new Pair<>(uid, pid));
             return true;
         } catch (RemoteException e) {
@@ -72,7 +73,7 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     @Override
     public List<Module> getModulesList(String processName) throws RemoteException {
         ensureRegistered();
-        int callingUid = Binder.getCallingUid();
+        int callingUid = getCallingUid();
         if (callingUid == 1000 && processName.equals("android")) {
             return ConfigManager.getInstance().getModulesForSystemServer();
         }
@@ -82,7 +83,7 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     @Override
     public String getPrefsPath(String packageName) throws RemoteException {
         ensureRegistered();
-        return ConfigManager.getInstance().getPrefsPath(packageName, Binder.getCallingUid());
+        return ConfigManager.getInstance().getPrefsPath(packageName, getCallingUid());
     }
 
     @Override
@@ -100,8 +101,8 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     @Override
     public IBinder requestModuleBinder(String name) throws RemoteException {
         ensureRegistered();
-        if (ConfigManager.getInstance().isModule(Binder.getCallingUid(), name)) {
-            ConfigManager.getInstance().ensureModulePrefsPermission(Binder.getCallingUid());
+        if (ConfigManager.getInstance().isModule(getCallingUid(), name)) {
+            ConfigManager.getInstance().ensureModulePrefsPermission(getCallingUid());
             return ServiceManager.getModuleService(name);
         } else return null;
     }
@@ -109,8 +110,13 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     @Override
     public IBinder requestManagerBinder() throws RemoteException {
         ensureRegistered();
-        if (ConfigManager.getInstance().isManager(Binder.getCallingUid()))
-            return ServiceManager.getManagerService();
+        if (ConfigManager.getInstance().isManager(getCallingUid())) {
+            var service = ServiceManager.getManagerService();
+            if (Utils.isMIUI) {
+                service.new ManagerGuard(handles.get(getCallingPid()));
+            }
+            return service;
+        }
         return null;
     }
 
@@ -119,7 +125,7 @@ public class LSPApplicationService extends ILSPApplicationService.Stub {
     }
 
     private void ensureRegistered() throws RemoteException {
-        if (!hasRegister(Binder.getCallingUid(), Binder.getCallingPid()))
+        if (!hasRegister(getCallingUid(), getCallingPid()))
             throw new RemoteException("Not registered");
     }
 }
